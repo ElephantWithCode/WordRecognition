@@ -38,6 +38,9 @@ import com.baidu.ocr.sdk.model.AccessToken;
 import com.baidu.ocr.sdk.model.GeneralParams;
 import com.baidu.ocr.sdk.model.GeneralResult;
 import com.baidu.ocr.sdk.model.WordSimple;
+import com.soundcloud.android.crop.Crop;
+import com.soundcloud.android.crop.CropImageActivity;
+
 import org.json.JSONObject;
 import java.io.BufferedReader;
 import java.io.File;
@@ -52,6 +55,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 public class MainActivity extends AppCompatActivity implements OnResultListener<String> {
+    private static final int CROP_IMAGE = -999;
     private CameraManager mCameraManager;
     private SurfaceView mSurfaceView;
     private SurfaceHolder mSurfaceViewHolder;
@@ -78,6 +82,11 @@ public class MainActivity extends AppCompatActivity implements OnResultListener<
     private String filePath;
     private ImageView result_img;
     private boolean hasStopPreview = true;
+    private Uri outputUri = null;
+    private File outputFile = null;
+    private String afterImagePath = null;
+    private boolean isPhoto = false;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -100,6 +109,12 @@ public class MainActivity extends AppCompatActivity implements OnResultListener<
         take_picture_bt.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
+                if (isPhoto){
+                    mSurfaceView.setVisibility(View.VISIBLE);
+                    img_show.setVisibility(View.GONE);
+                    isPhoto = false;
+                    return;
+                }
                 takePicture();
             }
         });
@@ -144,24 +159,51 @@ public class MainActivity extends AppCompatActivity implements OnResultListener<
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         switch (requestCode) {
             case CHOOSE_PHOTO:
+                String beforeImagePath = null;
+                afterImagePath = Environment.getExternalStorageDirectory() + "/DCIM/Camera/WordRecognition_picture" + "_temp_" + ".jpg";
+                outputFile = new File(afterImagePath);
+                img_show.setImageURI(null);
+                if (outputFile.exists()){
+                    outputFile.delete();
+                    try {
+                        outputFile.createNewFile();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
+                if (resultCode == RESULT_OK){
+                    if (Build.VERSION.SDK_INT > 19) {
+                        beforeImagePath = handlerImgOnNewVersion(data);
+                    } else {
+                        beforeImagePath = handlerImgOnOldVersion(data);
+                    }
+                    Uri inputUri = Uri.fromFile(new File(beforeImagePath));
+                    outputUri = Uri.fromFile(outputFile);
+                    Crop.of(inputUri, outputUri).asSquare().start(this);
+                }
+                break;
+            case Crop.REQUEST_CROP:
                 String imgPath=null;
                 if (resultCode == RESULT_OK) {
-                    if (Build.VERSION.SDK_INT > 19) {
+                    /*if (Build.VERSION.SDK_INT > 19) {
                         imgPath = handlerImgOnNewVersion(data);
                     } else {
                         imgPath = handlerImgOnOldVersion(data);
-                    }
-                    if (imgPath != null) {
-                        Bitmap bitmap = BitmapFactory.decodeFile(imgPath);
-                        img_show.setImageBitmap(bitmap);
+                    }*/
+                    if (outputUri != null) {
+//                        Bitmap bitmap = BitmapFactory.decodeFile(imgPath);
+//                        Bitmap bitmap = outputUri.
+//                        img_show.setImageBitmap(bitmap);
+                        img_show.setImageURI(outputUri);
                         mSurfaceView.setVisibility(View.GONE);
                         img_show.setVisibility(View.VISIBLE);
+                        isPhoto = true;
                         System.out.println("imgPath" + imgPath);
                         if (!hasGotToken) {
                             OCR.getInstance().initWithToken(MainActivity.this, "24.9c4bcec34d389e9ace00432196b76266.2592000.1508329125.282335-10115903");//第二个参数为token，为加快识别速度，直接采用现成的token，周期为一个月
                             hasGotToken = true;
                         }
-                        wordRecognition(imgPath);
+                        wordRecognition(afterImagePath);
                     } else {
                         Toast.makeText(this, "获取图片失败！", Toast.LENGTH_SHORT).show();
                     }
