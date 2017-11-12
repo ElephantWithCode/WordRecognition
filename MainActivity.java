@@ -25,6 +25,7 @@ import android.support.v4.content.ContextCompat;
 import android.support.v7.app.ActionBar;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
@@ -56,6 +57,7 @@ import java.util.List;
 import java.util.Map;
 public class MainActivity extends AppCompatActivity implements OnResultListener<String> {
     private static final int CROP_IMAGE = -999;
+    private static final String TAG = "WordRecognition";
     private CameraManager mCameraManager;
     private SurfaceView mSurfaceView;
     private SurfaceHolder mSurfaceViewHolder;
@@ -144,6 +146,7 @@ public class MainActivity extends AppCompatActivity implements OnResultListener<
                     hasGotResult = false;
                 } else {
                     Toast.makeText(MainActivity.this, "文字识别中...", Toast.LENGTH_SHORT).show();
+
                 }
             }
         });
@@ -264,6 +267,7 @@ public class MainActivity extends AppCompatActivity implements OnResultListener<
             @Override
             public void surfaceCreated(SurfaceHolder holder) {
                 initCameraAndPreview();
+                Log.d(TAG,"SUCCEED");
             }
 
             //SurfaceView被销毁
@@ -271,8 +275,8 @@ public class MainActivity extends AppCompatActivity implements OnResultListener<
             public void surfaceDestroyed(SurfaceHolder holder) {
                 //释放camera
                 if (mCameraDevice != null) {
-                   // mCameraDevice.close();
-                   // mCameraDevice = null;
+                    mCameraDevice.close();
+                    mCameraDevice = null;
                 }
             }
 
@@ -314,7 +318,7 @@ public class MainActivity extends AppCompatActivity implements OnResultListener<
             filePath = savePicture(imgBytes);
             //采用api key和secret key来获取，当然也可以采用license来获取
             if (!hasGotToken) {
-                OCR.getInstance().initWithToken(MainActivity.this, "24.9c4bcec34d389e9ace00432196b76266.2592000.1508329125.282335-10115903");//第二个参数为token，为加快识别速度，直接采用现成的token，周期为一个月
+                OCR.getInstance().initWithToken(MainActivity.this, "24.999bbf542738bdf02b3cfdee9fddd8be.2592000.1512732685.282335-10115903");//第二个参数为token，为加快识别速度，直接采用现成的token，周期为一个月
                 hasGotToken = true;
             }
             wordRecognition(filePath);
@@ -446,8 +450,8 @@ public class MainActivity extends AppCompatActivity implements OnResultListener<
         @Override
         public void onDisconnected(@NonNull CameraDevice camera) {
            if (mCameraDevice != null) {
-                //mCameraDevice.close();
-               // mCameraDevice = null;
+                mCameraDevice.close();
+                mCameraDevice = null;
             }
         }
 
@@ -644,9 +648,13 @@ public class MainActivity extends AppCompatActivity implements OnResultListener<
     //释放资源待会处理
     @Override
     protected void onDestroy() {
-        if(mCameraDevice!=null)
-       // mCameraDevice.close();
-        //mCameraDevice = null;
+        if(mCameraDevice!=null){
+            mCameraDevice.close();
+            mCameraDevice = null;
+        }
+        if (outputFile != null && outputFile.exists()){
+            outputFile.delete();
+        }
         super.onDestroy();
     }
 }
