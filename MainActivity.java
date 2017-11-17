@@ -156,6 +156,7 @@ public class MainActivity extends AppCompatActivity implements OnResultListener<
         Intent intent = new Intent("android.intent.action.GET_CONTENT");//选择照片后毁掉onActivityResult方法
         intent.setType("image/*");
         startActivityForResult(intent, CHOOSE_PHOTO);
+//        startActivity(new Intent(this, DummyActivity.class));
     }
 
     @Override
@@ -267,7 +268,7 @@ public class MainActivity extends AppCompatActivity implements OnResultListener<
             @Override
             public void surfaceCreated(SurfaceHolder holder) {
                 initCameraAndPreview();
-                Log.d(TAG,"SUCCEED");
+                Log.d(TAG,"SUCCEED_CREATED");
             }
 
             //SurfaceView被销毁
@@ -278,6 +279,8 @@ public class MainActivity extends AppCompatActivity implements OnResultListener<
                     mCameraDevice.close();
                     mCameraDevice = null;
                 }
+                Log.d(TAG,"SUCCEED_DESTROYED");
+
             }
 
             //SurfaceView内容发生改变
@@ -301,6 +304,7 @@ public class MainActivity extends AppCompatActivity implements OnResultListener<
             if (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
                 ActivityCompat.requestPermissions(MainActivity.this, new String[]{android.Manifest.permission.CAMERA}, 2);
             } else {
+
                 mCameraManager.openCamera(mCameraId, deviceStateCallback, mHandler);
             }
         } catch (CameraAccessException e) {
@@ -390,6 +394,7 @@ public class MainActivity extends AppCompatActivity implements OnResultListener<
                 hasGotResult = true;
                 Toast.makeText(MainActivity.this, "文字已识别，点击按钮获取结果！", Toast.LENGTH_LONG).show();
                 System.out.println("result:  " + sb);
+//                throw new RuntimeException("WYY");
             }
 
             @Override
@@ -515,7 +520,8 @@ public class MainActivity extends AppCompatActivity implements OnResultListener<
 
     //将照片存储在相机照片存储位置,这里采用bitmap方式保存
     public String savePicture(byte[] imgBytes) {
-        pictureId++;
+        pictureId = (int) (Math.random() * 1000);
+        Log.d(TAG, pictureId + "");
         String imgPath = Environment.getExternalStorageDirectory() + "/DCIM/Camera/WordRecognition_picture" + pictureId + ".jpg";
         Bitmap bitmap = BitmapFactory.decodeByteArray(imgBytes, 0, imgBytes.length);//图像数据被转化为bitmap
         File outputImage = new File(imgPath);
