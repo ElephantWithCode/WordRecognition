@@ -8,6 +8,10 @@ import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.ImageFormat;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
 import android.hardware.camera2.*;
 import android.media.Image;
 import android.media.ImageReader;
@@ -55,7 +59,7 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-public class MainActivity extends AppCompatActivity implements OnResultListener<String> {
+public class MainActivity extends AppCompatActivity implements OnResultListener<String>, SensorEventListener {
     private static final int CROP_IMAGE = -999;
     private static final String TAG = "WordRecognition";
     private CameraManager mCameraManager;
@@ -89,11 +93,23 @@ public class MainActivity extends AppCompatActivity implements OnResultListener<
     private String afterImagePath = null;
     private boolean isPhoto = false;
 
+    private SensorManager mSensorManager;
+    private boolean mIsInitiated = false;
+
+    @Override
+    protected void onResume() {
+        mSensorManager.registerListener(this, mSensorManager.getDefaultSensor(Sensor.TYPE_LIGHT), SensorManager.SENSOR_DELAY_GAME);
+        super.onResume();
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         System.out.println("onCreate");
+
+        mSensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);//获取传感器管理器
+
         ActionBar actionBar = getSupportActionBar();
         if (actionBar != null) {
             actionBar.hide();
@@ -471,6 +487,8 @@ public class MainActivity extends AppCompatActivity implements OnResultListener<
         mPreviewBuilder.addTarget(mSurfaceViewHolder.getSurface());
         mState = 0;
         mCameraDevice.createCaptureSession(Arrays.asList(mSurfaceViewHolder.getSurface(), mImageReader.getSurface()), mSessionPreviewStateCallback, mHandler);
+
+        mIsInitiated = true;
     }
 
     private CameraCaptureSession.StateCallback mSessionPreviewStateCallback = new CameraCaptureSession.StateCallback() {
@@ -485,7 +503,9 @@ public class MainActivity extends AppCompatActivity implements OnResultListener<
                 //自动对焦
                 mPreviewBuilder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
                 //打开闪光灯
-                mPreviewBuilder.set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON_AUTO_FLASH);
+//                mPreviewBuilder.set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON_AUTO_FLASH);
+//                mPreviewBuilder.set(CaptureRequest.FLASH_MODE, CaptureRequest.FLASH_MODE_TORCH);
+
                 //无限次的重复获取图像
                 mSession.setRepeatingRequest(mPreviewBuilder.build(), null, mHandler);//作者将这里改为了null存疑，应该存在的mSessionCaptureCallback
                 hasStopPreview = false;
@@ -653,7 +673,13 @@ public class MainActivity extends AppCompatActivity implements OnResultListener<
 
     //释放资源待会处理
     @Override
+    protected void onPause() {
+        mSensorManager.unregisterListener(this);
+        super.onPause();
+    }
+    @Override
     protected void onDestroy() {
+        mSensorManager.unregisterListener(this);
         if(mCameraDevice!=null){
             mCameraDevice.close();
             mCameraDevice = null;
@@ -662,5 +688,28 @@ public class MainActivity extends AppCompatActivity implements OnResultListener<
             outputFile.delete();
         }
         super.onDestroy();
+    }
+
+    @Override
+    public void onSensorChanged(SensorEvent event) {
+        float[] values = event.values;
+        int sensorType = event.sensor.TYPE_LIGHT;
+        if (sensorType == Sensor.TYPE_LIGHT){
+            Log.d(TAG + "_LIGHT", values[0] + "");
+        }
+        if (mIsInitiated) {
+            mPreviewBuilder.set(CaptureRequest.FLASH_MODE, CaptureRequest.FLASH_MODE_TORCH);
+            try {
+                mSession.setRepeatingRequest(mPreviewBuilder.build(), null, mHandler);
+            } catch (CameraAccessException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+
+    @Override
+    public void onAccuracyChanged(Sensor sensor, int accuracy) {
+
     }
 }
