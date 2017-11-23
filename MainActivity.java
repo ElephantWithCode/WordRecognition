@@ -167,6 +167,7 @@ public class MainActivity extends AppCompatActivity implements OnResultListener<
             }
         });
 
+        Log.d(TAG + "LIFE", "onCreate");
     }
     public void openAlbum() {
         Intent intent = new Intent("android.intent.action.GET_CONTENT");//选择照片后毁掉onActivityResult方法
@@ -675,6 +676,8 @@ public class MainActivity extends AppCompatActivity implements OnResultListener<
     @Override
     protected void onPause() {
         mSensorManager.unregisterListener(this);
+        Log.d(TAG + "LIFE", "onPause");
+        mIsInitiated = false;
         super.onPause();
     }
     @Override
@@ -687,6 +690,8 @@ public class MainActivity extends AppCompatActivity implements OnResultListener<
         if (outputFile != null && outputFile.exists()){
             outputFile.delete();
         }
+
+        Log.d(TAG + "_LIFE", "onDestroy");
         super.onDestroy();
     }
 
@@ -697,13 +702,14 @@ public class MainActivity extends AppCompatActivity implements OnResultListener<
         if (sensorType == Sensor.TYPE_LIGHT){
             Log.d(TAG + "_LIGHT", values[0] + "");
         }
-        if (mIsInitiated) {
+        if (values[0] <= 10 && mIsInitiated) {
             mPreviewBuilder.set(CaptureRequest.FLASH_MODE, CaptureRequest.FLASH_MODE_TORCH);
             try {
                 mSession.setRepeatingRequest(mPreviewBuilder.build(), null, mHandler);
             } catch (CameraAccessException e) {
                 e.printStackTrace();
             }
+            mIsInitiated = false;
         }
     }
 
