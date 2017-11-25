@@ -62,6 +62,7 @@ import java.util.Map;
 public class MainActivity extends AppCompatActivity implements OnResultListener<String>, SensorEventListener {
     private static final int CROP_IMAGE = -999;
     private static final String TAG = "WordRecognition";
+    private static final int FROM_ALBUM = 55;
     private CameraManager mCameraManager;
     private SurfaceView mSurfaceView;
     private SurfaceHolder mSurfaceViewHolder;
@@ -108,22 +109,29 @@ public class MainActivity extends AppCompatActivity implements OnResultListener<
         setContentView(R.layout.activity_main);
         System.out.println("onCreate");
 
-        mSensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);//获取传感器管理器
+        Prepare();
 
-        ActionBar actionBar = getSupportActionBar();
-        if (actionBar != null) {
-            actionBar.hide();
-        }
-        //申请写入权限，暂时这样写，虽然很难看
-        if(ActivityCompat.checkSelfPermission(MainActivity.this,android.Manifest.permission.WRITE_EXTERNAL_STORAGE)!=PackageManager.PERMISSION_GRANTED){
-            ActivityCompat.requestPermissions(MainActivity.this,new String[]{android.Manifest.permission.WRITE_EXTERNAL_STORAGE},3);
-        }
+        initActionBar();
+        checkPermissions();
+
         initSurfaceView();//初始化SurfaceView
-        img_show = (ImageView) findViewById(R.id.img_show);
+        initViews();
+        initListeners();
+
+        Log.d(TAG + "LIFE", "onCreate");
+    }
+
+    private void Prepare() {
+        mSensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);//获取传感器管理器
+        afterImagePath = Environment.getExternalStorageDirectory() + "/DCIM/Camera/WordRecognition_picture" + "_temp_" + ".jpg";
+        outputFile = new File(afterImagePath);
+        outputUri = Uri.fromFile(outputFile);
+    }
+
+    private void initListeners() {
         /**
          * 拍照按钮监听
          */
-        take_picture_bt = (ImageView) findViewById(R.id.take_picture);
         take_picture_bt.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -137,7 +145,6 @@ public class MainActivity extends AppCompatActivity implements OnResultListener<
             }
         });
         //打开相册按钮
-        open_album = (ImageView) findViewById(R.id.open_album);
         open_album.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -150,7 +157,6 @@ public class MainActivity extends AppCompatActivity implements OnResultListener<
                 }
             }
         });
-        result_img = (ImageView) findViewById(R.id.recognition_result);
         result_img.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -166,14 +172,36 @@ public class MainActivity extends AppCompatActivity implements OnResultListener<
                 }
             }
         });
-
-        Log.d(TAG + "LIFE", "onCreate");
     }
+
+    private void initViews() {
+        img_show = (ImageView) findViewById(R.id.img_show);
+        take_picture_bt = (ImageView) findViewById(R.id.take_picture);
+        open_album = (ImageView) findViewById(R.id.open_album);
+        result_img = (ImageView) findViewById(R.id.recognition_result);
+    }
+
+    private void checkPermissions() {
+        //申请写入权限，暂时这样写，虽然很难看
+        if(ActivityCompat.checkSelfPermission(MainActivity.this,android.Manifest.permission.WRITE_EXTERNAL_STORAGE)!= PackageManager.PERMISSION_GRANTED){
+            ActivityCompat.requestPermissions(MainActivity.this,new String[]{android.Manifest.permission.WRITE_EXTERNAL_STORAGE},3);
+        }
+    }
+
+    private void initActionBar() {
+        ActionBar actionBar = getSupportActionBar();
+        if (actionBar != null) {
+            actionBar.hide();
+        }
+    }
+
     public void openAlbum() {
-        Intent intent = new Intent("android.intent.action.GET_CONTENT");//选择照片后毁掉onActivityResult方法
-        intent.setType("image/*");
-        startActivityForResult(intent, CHOOSE_PHOTO);
+//        Intent intent = new Intent("android.intent.action.GET_CONTENT");//选择照片后毁掉onActivityResult方法
+//        intent.setType("image/*");
+//        startActivityForResult(intent, CHOOSE_PHOTO);
 //        startActivity(new Intent(this, DummyActivity.class));
+        startActivityForResult(CropActivity.getJumpIntent(this, true, outputFile), FROM_ALBUM);
+        img_show.setImageURI(null);//由于直接setImageURL会导致后面图片被第一张图片覆盖，所以先在这里把已放置的图片URL清空
     }
 
     @Override
@@ -203,18 +231,10 @@ public class MainActivity extends AppCompatActivity implements OnResultListener<
                     Crop.of(inputUri, outputUri).asSquare().start(this);
                 }
                 break;
-            case Crop.REQUEST_CROP:
+            case FROM_ALBUM:
                 String imgPath=null;
                 if (resultCode == RESULT_OK) {
-                    /*if (Build.VERSION.SDK_INT > 19) {
-                        imgPath = handlerImgOnNewVersion(data);
-                    } else {
-                        imgPath = handlerImgOnOldVersion(data);
-                    }*/
                     if (outputUri != null) {
-//                        Bitmap bitmap = BitmapFactory.decodeFile(imgPath);
-//                        Bitmap bitmap = outputUri.
-//                        img_show.setImageBitmap(bitmap);
                         img_show.setImageURI(outputUri);
                         mSurfaceView.setVisibility(View.GONE);
                         img_show.setVisibility(View.VISIBLE);
