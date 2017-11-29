@@ -241,7 +241,7 @@ public class MainActivity extends AppCompatActivity implements OnResultListener<
                         isPhoto = true;
                         System.out.println("imgPath" + imgPath);
                         if (!hasGotToken) {
-                            OCR.getInstance().initWithToken(MainActivity.this, "24.9c4bcec34d389e9ace00432196b76266.2592000.1508329125.282335-10115903");//第二个参数为token，为加快识别速度，直接采用现成的token，周期为一个月
+                            OCR.getInstance().initWithToken(MainActivity.this, "24.999bbf542738bdf02b3cfdee9fddd8be.2592000.1512732685.282335-10115903");//第二个参数为token，为加快识别速度，直接采用现成的token，周期为一个月
                             hasGotToken = true;
                         }
                         wordRecognition(afterImagePath);
@@ -252,6 +252,7 @@ public class MainActivity extends AppCompatActivity implements OnResultListener<
                 break;
             default:
         }
+
     }
 
     private String handlerImgOnOldVersion(Intent data) {
@@ -304,8 +305,16 @@ public class MainActivity extends AppCompatActivity implements OnResultListener<
             //SurfaceView被成功创建
             @Override
             public void surfaceCreated(SurfaceHolder holder) {
-                initCameraAndPreview();
-                Log.d(TAG,"SUCCEED_CREATED");
+                //是用handler而不直接initCameraAndPreview是因为似乎创建surface和initCamera在一起时会导致surface的canvas绘制了默认的黑色
+                new Handler().postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        initCameraAndPreview();
+                        Log.d(TAG+"_SUR","SUCCEED_CREATED_SURFACE");
+                    }
+                },100);
+//                initCameraAndPreview();
+//                Log.d(TAG+"_SUR","SUCCEED_CREATED_SURFACE");
             }
 
             //SurfaceView被销毁
@@ -316,7 +325,7 @@ public class MainActivity extends AppCompatActivity implements OnResultListener<
                     mCameraDevice.close();
                     mCameraDevice = null;
                 }
-                Log.d(TAG,"SUCCEED_DESTROYED");
+                Log.d(TAG+"_SUR","SUCCEED_DESTROYED_SURFACE");
 
             }
 
@@ -437,6 +446,7 @@ public class MainActivity extends AppCompatActivity implements OnResultListener<
             @Override
             public void onError(OCRError error) {
                 System.out.println(error.getMessage());
+                Log.d("OCR_ERROR", error.getMessage());
             }
         });
     }
