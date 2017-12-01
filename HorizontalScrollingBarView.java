@@ -87,7 +87,7 @@ public class HorizontalScrollingBarView extends View{
     private int mDrawTextHeight;
 
     private List<String> mTabNames = new ArrayList<>();
-    
+
     private Paint mPaint = new Paint();
     private int mTextColor = Color.parseColor("#47bafe");
 
@@ -147,7 +147,7 @@ public class HorizontalScrollingBarView extends View{
         mPaint.setAntiAlias(true);
         mPaint.setColor(mTextColor);
         mPaint.setTextSize(mMeasuredHeight / 5);
-        
+
         mTextListener.onDrawText(canvas, mTabNames.size());
     }
 }
