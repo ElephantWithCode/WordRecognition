@@ -1,5 +1,8 @@
 package com.example.wordrecognition;
 
+import android.animation.Animator;
+import android.animation.AnimatorListenerAdapter;
+import android.animation.ValueAnimator;
 import android.content.ContentUris;
 import android.content.Context;
 import android.content.Intent;
@@ -7,6 +10,7 @@ import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Canvas;
 import android.graphics.ImageFormat;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
@@ -23,6 +27,10 @@ import android.os.Handler;
 import android.os.HandlerThread;
 import android.provider.DocumentsContract;
 import android.provider.MediaStore;
+import android.renderscript.Allocation;
+import android.renderscript.Element;
+import android.renderscript.RenderScript;
+import android.renderscript.ScriptIntrinsicBlur;
 import android.support.annotation.NonNull;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
@@ -56,9 +64,14 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+
+
+//To obtain the preparing bitmap by captureRequest.capture, together with maybe another ImageReader and its listener to accept the target bitmap and to blur it.
+
 public class MainActivity extends AppCompatActivity implements OnResultListener<String>, SensorEventListener {
     private static final int CROP_IMAGE = -999;
     private static final String TAG = "WordRecognition";
@@ -77,6 +90,7 @@ public class MainActivity extends AppCompatActivity implements OnResultListener<
     private ImageView take_picture_bt;
     private Handler mainHandler;
     private ImageView img_show;
+    private ImageView blurShow;
     private int pictureId;
     private final String wordRecognitionHost = "https://aip.baidubce.com/rest/2.0/ocr/v1/general";//文字识别通用url
     private final String apiKey = "Q8mGEfYzO4hdGDGMG2mS69j9";//API key
@@ -97,6 +111,10 @@ public class MainActivity extends AppCompatActivity implements OnResultListener<
     private SensorManager mSensorManager;
     private boolean mIsInitiated = false;
 
+    private HorizontalScrollingBarView mScrollModeControlView;
+    private ArrayList<String> mTabNames = new ArrayList<>();
+    private Bitmap mToBlurBitmap;
+
     @Override
     protected void onResume() {
         mSensorManager.registerListener(this, mSensorManager.getDefaultSensor(Sensor.TYPE_LIGHT), SensorManager.SENSOR_DELAY_GAME);
@@ -114,11 +132,20 @@ public class MainActivity extends AppCompatActivity implements OnResultListener<
         initActionBar();
         checkPermissions();
 
-        initSurfaceView();//初始化SurfaceView
         initViews();
+        prepareHorizontalScrollTabs();
+        initSurfaceView();//初始化SurfaceView
         initListeners();
 
         Log.d(TAG + "LIFE", "onCreate");
+    }
+
+    private void prepareHorizontalScrollTabs() {
+        mTabNames.add("Camera");
+        mTabNames.add("SmartCrop");
+        mTabNames.add("SuDo");
+        mScrollModeControlView.setTabName(mTabNames);
+        mScrollModeControlView.attachView(mSurfaceView);
     }
 
     private void Prepare() {
@@ -135,6 +162,7 @@ public class MainActivity extends AppCompatActivity implements OnResultListener<
         take_picture_bt.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
+                isShifting = false;
                 if (isPhoto){
                     mSurfaceView.setVisibility(View.VISIBLE);
                     img_show.setVisibility(View.GONE);
@@ -172,13 +200,73 @@ public class MainActivity extends AppCompatActivity implements OnResultListener<
                 }
             }
         });
+        mScrollModeControlView.setOnTabScrollListener(new OnTabScrollListener() {
+            @Override
+            public void onScrollEnd(int currentItemPosition) {
+
+            }
+
+            @Override
+            public void onPreScroll(int currentItemPosition) {
+                performTransferring();
+            }
+
+        });
     }
 
+    private void performTransferring() {
+        isShifting = true;
+        try {
+            mSession.stopRepeating();
+            takePicture();
+        } catch (CameraAccessException e) {
+            e.printStackTrace();
+        }
+    }
+
+
+    private void onBlurBitmapPrepared(Bitmap mToBlurBitmap) {
+        blurShow.setVisibility(View.VISIBLE);
+        Bitmap blurredBitmap = blur(mToBlurBitmap, 25f, this);
+        blurShow.setImageBitmap(blurredBitmap);
+        ValueAnimator animator = ValueAnimator.ofFloat(1, 0);
+        animator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
+            @Override
+            public void onAnimationUpdate(ValueAnimator animation) {
+                float value = (float) animation.getAnimatedValue();
+                blurShow.setAlpha(value);
+            }
+        });
+        animator.setDuration(800);
+        animator.start();
+        animator.addListener(new AnimatorListenerAdapter() {
+            @Override
+            public void onAnimationEnd(Animator animation) {
+                super.onAnimationEnd(animation);
+
+                //自动对焦
+                mPreviewBuilder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
+                //无限次的重复获取图像
+                try {
+                    mSession.setRepeatingRequest(mPreviewBuilder.build(), null, mHandler);//作者将这里改为了null存疑，应该存在的mSessionCaptureCallback
+                } catch (CameraAccessException e) {
+                    e.printStackTrace();
+                }
+                blurShow.setVisibility(View.GONE);
+                hasStopPreview = false;
+            }
+        });
+    }
+
+
     private void initViews() {
+        blurShow = findViewById(R.id.temp_blur_show);
         img_show = (ImageView) findViewById(R.id.img_show);
         take_picture_bt = (ImageView) findViewById(R.id.take_picture);
         open_album = (ImageView) findViewById(R.id.open_album);
         result_img = (ImageView) findViewById(R.id.recognition_result);
+        mSurfaceView = (SurfaceView) findViewById(R.id.mFirstSurfaceView);
+        mScrollModeControlView = (HorizontalScrollingBarView) findViewById(R.id.mode_scroll_control);
     }
 
     private void checkPermissions() {
@@ -299,7 +387,7 @@ public class MainActivity extends AppCompatActivity implements OnResultListener<
     }
 
     public void initSurfaceView() {
-        mSurfaceView = (SurfaceView) findViewById(R.id.mFirstSurfaceView);
+//        mSurfaceView = (SurfaceView) findViewById(R.id.mFirstSurfaceView);这里我移到了initViews里面
         mSurfaceViewHolder = mSurfaceView.getHolder();//通过SurfaceViewHolder可以对SurfaceView进行管理
         mSurfaceViewHolder.addCallback(new SurfaceHolder.Callback() {
             //SurfaceView被成功创建
@@ -358,24 +446,43 @@ public class MainActivity extends AppCompatActivity implements OnResultListener<
         }
     }
 
+    private volatile boolean isShifting = true;
+
     private ImageReader.OnImageAvailableListener mOnImageAvailableListener = new ImageReader.OnImageAvailableListener() {
         @Override
         public void onImageAvailable(ImageReader reader) {
             //进行相片存储
             // mCameraDevice.close();
             byte[] imgBytes;
-            imgBytes = getImagBytes(reader);//获取img的bytes数据格式
+            if (isShifting) {
+                imgBytes = getImagBytes(reader);
+                Bitmap mToBlurBitmap = BitmapFactory.decodeByteArray(imgBytes, 0, imgBytes.length);
+                onBlurBitmapPrepared(mToBlurBitmap);
+            } else {
+                imgBytes = getImagBytes(reader);//获取img的bytes数据格式
+                filePath = savePicture(imgBytes);
+                //采用api key和secret key来获取，当然也可以采用license来获取
+                if (!hasGotToken) {
+                    OCR.getInstance().initWithToken(MainActivity.this, "24.999bbf542738bdf02b3cfdee9fddd8be.2592000.1512732685.282335-10115903");//第二个参数为token，为加快识别速度，直接采用现成的token，周期为一个月
+                    hasGotToken = true;
+                }
+                wordRecognition(filePath);
+            }
+            /*imgBytes = getImagBytes(reader);//获取img的bytes数据格式
             filePath = savePicture(imgBytes);
             //采用api key和secret key来获取，当然也可以采用license来获取
             if (!hasGotToken) {
                 OCR.getInstance().initWithToken(MainActivity.this, "24.999bbf542738bdf02b3cfdee9fddd8be.2592000.1512732685.282335-10115903");//第二个参数为token，为加快识别速度，直接采用现成的token，周期为一个月
                 hasGotToken = true;
             }
-            wordRecognition(filePath);
+            wordRecognition(filePath);*/
+
+
             //initAccessTokenWithAkSk();
             //initAccessTokenWithLicense();
         }
     };
+
 
     //获取图片的byte数据格式
     public byte[] getImagBytes(ImageReader reader) {
@@ -383,6 +490,7 @@ public class MainActivity extends AppCompatActivity implements OnResultListener<
         ByteBuffer buffer = image.getPlanes()[0].getBuffer();
         byte[] bytes = new byte[buffer.capacity()];//buffer.capacity，返回buffer的容量
         buffer.get(bytes);//将image对象转化为byte，再转化为bitmap
+        image.close();//不加产生了maxImages has been 7的exception
         return bytes;
     }
 
@@ -673,6 +781,24 @@ public class MainActivity extends AppCompatActivity implements OnResultListener<
         }
     }
 
+    public static Bitmap blur(Bitmap bitmap,float radius, Context context) {
+        Bitmap output = Bitmap.createBitmap(bitmap); // 创建输出图片
+        RenderScript rs = RenderScript.create(context); // 构建一个RenderScript对象
+        ScriptIntrinsicBlur gaussianBlue = ScriptIntrinsicBlur.create(rs, Element.U8_4(rs)); // 创建高斯模糊脚本
+        Allocation allIn = Allocation.createFromBitmap(rs, bitmap); // 创建用于输入的脚本类型
+        Allocation allOut = Allocation.createFromBitmap(rs, output); // 创建用于输出的脚本类型
+        gaussianBlue.setRadius(radius); // 设置模糊半径，范围0f<radius<=25f
+        gaussianBlue.setInput(allIn); // 设置输入脚本类型
+        gaussianBlue.forEach(allOut); // 执行高斯模糊算法，并将结果填入输出脚本类型中
+        allOut.copyTo(output); // 将输出内存编码为Bitmap，图片大小必须注意
+        if (Build.VERSION.SDK_INT < 23) {
+            rs.destroy(); // 关闭RenderScript对象，API>=23则使用rs.releaseAllContexts()
+        } else {
+            RenderScript.releaseAllContexts();
+        }
+        return output;
+    }
+
     //获取图片应该旋转的角度，使图片竖直
     private int getJpegOrientation(CameraCharacteristics c, int deviceOrientation) {
         if (deviceOrientation == android.view.OrientationEventListener.ORIENTATION_UNKNOWN)
@@ -688,7 +814,7 @@ public class MainActivity extends AppCompatActivity implements OnResultListener<
 
         // Calculate desired JPEG orientation relative to camera orientation to make
         // the image upright relative to the device orientation
-        int jpegOrientation = (sensorOrientation + deviceOrientation + 360) % 360;
+        int jpegOrientation = (sensorOrientation  + deviceOrientation + 360) % 360;
 
         return jpegOrientation;
     }
@@ -732,7 +858,7 @@ public class MainActivity extends AppCompatActivity implements OnResultListener<
         if (sensorType == Sensor.TYPE_LIGHT){
             Log.d(TAG + "_LIGHT", values[0] + "");
         }
-        if (values[0] <= 10 && mIsInitiated) {
+        if (values[0] <= -1 && mIsInitiated) {
             mPreviewBuilder.set(CaptureRequest.FLASH_MODE, CaptureRequest.FLASH_MODE_TORCH);
             try {
                 mSession.setRepeatingRequest(mPreviewBuilder.build(), null, mHandler);

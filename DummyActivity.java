@@ -35,7 +35,9 @@ public class DummyActivity extends AppCompatActivity {
 
         mTabNames.add("Hello");
         mTabNames.add("World");
-
+        mTabNames.add("Andr1");
+        mTabNames.add("Andr2");
+        mTabNames.add("Andr3");
         mScrollView.setTabName(mTabNames);
         mScrollView.attachView(mDummyView);
     }
